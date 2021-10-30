@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import styles from './styles.module.scss';
 import Logo from './DoWhile';
 import { api } from '../../services/api';
+import io from 'socket.io-client';
 
 type Message = {
   id: string;
@@ -12,15 +13,38 @@ type Message = {
   }
 }
 
+const messagesQueue: Message[] = [] ;
+
+const socket = io('http://localhost:4000');
+
+socket.on('new_message', (data) => {
+  messagesQueue.push(data);
+})
+
 export function MessageList() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    api.get<Message[]>('messages/last').then((res) => {
+    const timer = setInterval(() => {
+      if (messagesQueue.length > 0) {
+        setMessages(prevState => [
+          messagesQueue[0],
+          prevState[0],
+          prevState[1]
+        ].filter(Boolean))
+      }
+    }, 3000);
+
+    messagesQueue.shift();
+    
+  }, [])
+
+  useEffect(() => {
+    api.get<Message[]>('messages/last').then(async (res) => {
      setIsLoading(true);
-      setMessages(res.data);
+      await setMessages(res.data);
       setIsLoading(false);
       console.log(messages);
     });
@@ -39,7 +63,7 @@ export function MessageList() {
 
       <ul className={styles.messageList}>
 
-        { messages.map((message) => {
+        { messages && messages.length > 0 && messages.map((message) => {
           return (
             <li className={styles.message} key={message.id}>
               <p className={styles.messageContent}>
